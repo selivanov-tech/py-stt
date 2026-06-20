@@ -1,0 +1,29 @@
+# uv / venv  (uv.lock IS committed)
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# MLflow
+mlruns/
+mlartifacts/
+
+# Audio cache + datasets (large, often private)
+.cache/
+data/samples/
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+
+# Env / secrets
+.env
+.env.local
+
+# macOS / IDE
+.DS_Store
+.idea/

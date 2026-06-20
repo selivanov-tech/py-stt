@@ -1,0 +1,40 @@
+[project]
+name = "py-stt"
+version = "0.1.0"
+description = "STT engines, inference worker, and eval harness (Python side of stt-service)"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+metrics = ["jiwer>=3.0", "rapidfuzz>=3.0"]
+eval = ["mlflow>=3.1", "pandas>=2.0", "boto3>=1.34", "python-dotenv>=1.0", "jiwer>=3.0", "rapidfuzz>=3.0"]
+faster-whisper = ["faster-whisper"]
+mlx = ["mlx-whisper"]
+
+[dependency-groups]
+dev = ["pytest>=8.0", "httpx>=0.27", "jiwer>=3.0", "rapidfuzz>=3.0", "ruff>=0.6", "mypy>=1.11"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["stt_engines", "stt_worker", "stt_eval"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
