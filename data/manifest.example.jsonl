@@ -1,0 +1,3 @@
+{"id": "en-001", "audio": "data/samples/en-001.wav", "reference": "hey remind me to call the bank tomorrow at noon", "language": "en", "notes": "local file"}
+{"id": "ru-001", "audio": "s3://my-bucket/voice/ru-001.wav", "reference": "напиши сообщение что я опоздаю на пять минут", "language": "ru", "notes": "s3 or s3-compatible (set S3_ENDPOINT_URL)"}
+{"id": "en-002", "audio": "https://example.com/voice/en-002.wav", "reference": "lets refactor the payment service and add retries", "language": "en", "notes": "public url"}
