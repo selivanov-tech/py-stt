@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .base import STTEngine
+from .base import STTEngine, Transcript
 from .faster_whisper_engine import FasterWhisperEngine
 from .mlx_whisper_engine import MLXWhisperEngine
 from .mock import MockEngine
@@ -30,7 +30,7 @@ _ALL = [
 # every registered engine is concrete (the shared ABC base trips mypy here)
 ENGINES: dict[str, type[STTEngine]] = {cls.key: cls for cls in _ALL}  # type: ignore[type-abstract]
 
-__all__ = ["STTEngine", "ENGINES", "build_engine"]
+__all__ = ["ENGINES", "STTEngine", "Transcript", "build_engine"]
 
 
 def build_engine(spec: str) -> STTEngine:

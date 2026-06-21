@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .base import STTEngine
+from .base import STTEngine, Transcript
 
 # Short names → MLX community model repos. Pass any HF repo as model to override.
 _MODEL_MAP = {
@@ -20,8 +20,8 @@ class MLXWhisperEngine(STTEngine):
     def _repo(self) -> str:
         return _MODEL_MAP.get(self.model, self.model)
 
-    def transcribe(self, audio_path: str, language: str | None = None) -> str:
+    def transcribe(self, audio_path: str, language: str | None = None) -> Transcript:
         import mlx_whisper
 
         result = mlx_whisper.transcribe(audio_path, path_or_hf_repo=self._repo(), language=language)
-        return result["text"].strip()
+        return Transcript(text=result["text"].strip(), language=result.get("language"))

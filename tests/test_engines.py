@@ -6,7 +6,8 @@ from stt_engines import ENGINES, build_engine
 def test_mock_engine_transcribes():
     eng = build_engine("mock")
     out = eng.transcribe("clip.wav", "en")
-    assert "transcript" in out
+    assert "transcript" in out.text
+    assert out.language == "en"
     assert eng.key == "mock"
 
 
