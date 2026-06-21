@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 
-from .base import STTEngine
+from .base import STTEngine, Transcript
 
 
 class FasterWhisperEngine(STTEngine):
@@ -19,6 +19,7 @@ class FasterWhisperEngine(STTEngine):
         compute_type = os.getenv("FASTER_WHISPER_COMPUTE", "int8")
         self._model = WhisperModel(self.model, device=device, compute_type=compute_type)
 
-    def transcribe(self, audio_path: str, language: str | None = None) -> str:
-        segments, _info = self._model.transcribe(audio_path, language=language)
-        return " ".join(seg.text for seg in segments).strip()
+    def transcribe(self, audio_path: str, language: str | None = None) -> Transcript:
+        segments, info = self._model.transcribe(audio_path, language=language)
+        text = " ".join(seg.text for seg in segments).strip()
+        return Transcript(text=text, language=info.language)

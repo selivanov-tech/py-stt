@@ -1,13 +1,13 @@
 from __future__ import annotations
 
-from .base import STTEngine
+from .base import STTEngine, Transcript
 
 
 class _Stub(STTEngine):
     """Placeholder engine. Registered so it shows up everywhere; implement
     transcribe() when you want it for real."""
 
-    def transcribe(self, audio_path: str, language: str | None = None) -> str:
+    def transcribe(self, audio_path: str, language: str | None = None) -> Transcript:
         raise NotImplementedError(
             f"Engine '{self.key}' is a stub. Enable it with: {self.requirements}. "
             f"Then implement transcribe() in stt_engines/."

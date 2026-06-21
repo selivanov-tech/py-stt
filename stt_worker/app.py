@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import ipaddress
 import os
+import socket
 import tempfile
+import threading
 import time
 from urllib.parse import urlparse
 
@@ -14,12 +17,19 @@ app = FastAPI(title="stt model worker")
 
 # Engines are cached by spec so a model loads once and is reused across requests.
 _cache: dict[str, STTEngine] = {}
+_cache_lock = threading.Lock()
 
 
 def _engine(spec: str) -> STTEngine:
-    if spec not in _cache:
-        _cache[spec] = build_engine(spec)
-    return _cache[spec]
+    eng = _cache.get(spec)
+    if eng is not None:
+        return eng
+    with _cache_lock:  # double-checked: don't load the same model twice concurrently
+        eng = _cache.get(spec)
+        if eng is None:
+            eng = build_engine(spec)
+            _cache[spec] = eng
+        return eng
 
 
 class TranscribeRequest(BaseModel):
@@ -52,46 +62,83 @@ def transcribe(req: TranscribeRequest):
     except Exception as exc:  # missing dep, unknown key, model load failure
         raise HTTPException(status_code=400, detail=f"engine '{spec}' load failed: {exc}") from exc
 
-    audio = _resolve_audio(req)
+    audio, is_temp = _resolve_audio(req)
     started = time.perf_counter()
     try:
-        text = engine.transcribe(audio, req.language)
+        result = engine.transcribe(audio, req.language)
     except NotImplementedError as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"transcription failed: {exc}") from exc
+    finally:
+        if is_temp:
+            _cleanup(audio)
     latency_ms = int((time.perf_counter() - started) * 1000)
 
     return TranscribeResponse(
-        text=text,
+        text=result.text,
         engine=engine.key,
         model=engine.model,
         latency_ms=latency_ms,
-        detected_language=req.language,
+        detected_language=result.language,
     )
 
 
-def _resolve_audio(req: TranscribeRequest) -> str:
+def _resolve_audio(req: TranscribeRequest) -> tuple[str, bool]:
+    """Return (path, is_temp); is_temp paths are deleted after transcription."""
     if req.audio_path:
-        return req.audio_path
+        return req.audio_path, False
     if req.audio_url:
         scheme = urlparse(req.audio_url).scheme.lower()
         if scheme in ("http", "https"):
-            return _download(req.audio_url)
+            return _download(req.audio_url), True
         # s3:// is handled in the eval (stt_eval.audio.resolve_audio), not here yet.
         raise HTTPException(status_code=400, detail=f"unsupported audio_url scheme: {scheme!r}")
-    return "<no-audio>"  # fine for the mock engine
+    return "<no-audio>", False  # fine for the mock engine
+
+
+def _cleanup(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+
+
+def _check_public_url(url: str) -> None:
+    """Block SSRF: reject audio_url hosts that resolve to non-public addresses
+    (loopback, private, link-local — e.g. cloud metadata at 169.254.169.254)."""
+    parsed = urlparse(url)
+    host = parsed.hostname
+    if not host:
+        raise HTTPException(status_code=400, detail="audio_url has no host")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    try:
+        infos = socket.getaddrinfo(host, port)
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail=f"cannot resolve {host!r}: {exc}") from exc
+    for info in infos:
+        ip = ipaddress.ip_address(str(info[4][0]).split("%")[0])
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
+            raise HTTPException(
+                status_code=400,
+                detail=f"audio_url host {host!r} resolves to a non-public address",
+            )
 
 
 def _download(url: str) -> str:
     import requests
 
+    _check_public_url(url)
     suffix = os.path.splitext(urlparse(url).path)[1] or ".audio"
     fd, path = tempfile.mkstemp(suffix=suffix)
     os.close(fd)
-    with requests.get(url, stream=True, timeout=120) as resp:
-        resp.raise_for_status()
-        with open(path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=1 << 16):
-                f.write(chunk)
+    try:
+        with requests.get(url, stream=True, timeout=120) as resp:
+            resp.raise_for_status()
+            with open(path, "wb") as f:
+                for chunk in resp.iter_content(chunk_size=1 << 16):
+                    f.write(chunk)
+    except Exception:
+        _cleanup(path)
+        raise
     return path

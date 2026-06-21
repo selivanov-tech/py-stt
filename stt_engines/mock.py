@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .base import STTEngine
+from .base import STTEngine, Transcript
 
 
 class MockEngine(STTEngine):
@@ -13,5 +13,8 @@ class MockEngine(STTEngine):
     languages = "en, ru"
     probe_module = None  # always available
 
-    def transcribe(self, audio_path: str, language: str | None = None) -> str:
-        return f"[mock:{language or 'auto'}] transcript for {audio_path}"
+    def transcribe(self, audio_path: str, language: str | None = None) -> Transcript:
+        return Transcript(
+            text=f"[mock:{language or 'auto'}] transcript for {audio_path}",
+            language=language,
+        )

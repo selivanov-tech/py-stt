@@ -92,7 +92,7 @@ def _run_sample(engine, sample: Sample, settings: Settings) -> dict:
     try:
         audio_path = resolve_audio(sample.audio, settings.cache_dir)
         start = time.perf_counter()
-        hypothesis = engine.transcribe(audio_path, sample.language)
+        result = engine.transcribe(audio_path, sample.language)
         latency = round(time.perf_counter() - start, 2)
     except Exception as exc:
         return {
@@ -101,12 +101,13 @@ def _run_sample(engine, sample: Sample, settings: Settings) -> dict:
             "error": str(exc)[:300],
         }
 
-    sc = score(sample.reference, hypothesis, sample.language, settings.normalize)
+    sc = score(sample.reference, result.text, sample.language, settings.normalize)
     return {
         "id": sample.id,
         "language": sample.language or "auto",
+        "detected_language": result.language,
         "reference": sample.reference,
-        "hypothesis": hypothesis,
+        "hypothesis": result.text,
         "latency_s": latency,
         **sc.as_dict(),
     }

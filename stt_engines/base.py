@@ -1,6 +1,13 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+
+@dataclass
+class Transcript:
+    text: str
+    language: str | None = None  # language the engine detected (None if it can't)
 
 
 class STTEngine(ABC):
@@ -17,7 +24,7 @@ class STTEngine(ABC):
         self.model = model or self.default_model
 
     @abstractmethod
-    def transcribe(self, audio_path: str, language: str | None = None) -> str: ...
+    def transcribe(self, audio_path: str, language: str | None = None) -> Transcript: ...
 
     @property
     def label(self) -> str:
