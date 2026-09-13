@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from .base import STTEngine, Transcript
+import os
+
+from .base import Segment, STTEngine, Transcript
 
 # Short names → MLX community model repos. Pass any HF repo as model to override.
 _MODEL_MAP = {
@@ -23,5 +25,22 @@ class MLXWhisperEngine(STTEngine):
     def transcribe(self, audio_path: str, language: str | None = None) -> Transcript:
         import mlx_whisper
 
-        result = mlx_whisper.transcribe(audio_path, path_or_hf_repo=self._repo(), language=language)
-        return Transcript(text=result["text"].strip(), language=result.get("language"))
+        result = mlx_whisper.transcribe(
+            audio_path,
+            path_or_hf_repo=self._repo(),
+            language=language,
+            # false breaks repetition loops on long files, at some cost to consistency
+            condition_on_previous_text=_env_flag("MLX_WHISPER_CONDITION_ON_PREVIOUS_TEXT", True),
+        )
+        segments = [
+            Segment(start=round(s["start"], 2), end=round(s["end"], 2), text=s["text"].strip())
+            for s in result.get("segments", [])
+        ]
+        return Transcript(
+            text=result["text"].strip(), language=result.get("language"), segments=segments
+        )
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    value = os.getenv(name)
+    return default if value is None else value.strip().lower() in ("1", "true", "yes")

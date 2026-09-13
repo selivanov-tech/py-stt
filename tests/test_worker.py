@@ -10,7 +10,10 @@ client = TestClient(app)
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
-    assert "mock" in r.json()["engines"]
+    body = r.json()
+    assert "mock" in body["engines"]
+    statuses = {e["key"]: e["status"] for e in body["catalog"]}
+    assert statuses["mock"] == "built-in"
 
 
 def test_transcribe_mock():
@@ -23,6 +26,8 @@ def test_transcribe_mock():
     assert body["engine"] == "mock"
     assert "transcript" in body["text"]
     assert body["detected_language"] == "ru"
+    assert body["segments"] == []
+    assert body["audio_duration_s"] is None  # x.wav does not exist
 
 
 def test_stub_engine_returns_501():

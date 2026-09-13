@@ -11,20 +11,23 @@ from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-from stt_engines import ENGINES, STTEngine, build_engine
+from stt_engines import ENGINES, STTEngine, build_engine, catalog
+from stt_engines.media import audio_duration_s
 
 app = FastAPI(title="stt model worker")
 
 # Engines are cached by spec so a model loads once and is reused across requests.
 _cache: dict[str, STTEngine] = {}
-_cache_lock = threading.Lock()
+# One lock for loading and inference: local models share one GPU, and MLX is not
+# safe to drive from several threads at once. Concurrent requests wait here.
+_model_lock = threading.Lock()
 
 
 def _engine(spec: str) -> STTEngine:
     eng = _cache.get(spec)
     if eng is not None:
         return eng
-    with _cache_lock:  # double-checked: don't load the same model twice concurrently
+    with _model_lock:  # double-checked: don't load the same model twice concurrently
         eng = _cache.get(spec)
         if eng is None:
             eng = build_engine(spec)
@@ -41,17 +44,30 @@ class TranscribeRequest(BaseModel):
     audio_base64: str | None = None
 
 
+class SegmentOut(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
 class TranscribeResponse(BaseModel):
     text: str
     engine: str
     model: str
     latency_ms: int
     detected_language: str | None = None
+    audio_duration_s: float | None = None
+    segments: list[SegmentOut] = []
 
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "engines": list(ENGINES), "loaded": list(_cache)}
+    return {
+        "status": "ok",
+        "engines": list(ENGINES),
+        "loaded": list(_cache),
+        "catalog": catalog(),
+    }
 
 
 @app.post("/transcribe", response_model=TranscribeResponse)
@@ -63,9 +79,12 @@ def transcribe(req: TranscribeRequest):
         raise HTTPException(status_code=400, detail=f"engine '{spec}' load failed: {exc}") from exc
 
     audio, is_temp = _resolve_audio(req)
-    started = time.perf_counter()
+    duration_s = audio_duration_s(audio)
     try:
-        result = engine.transcribe(audio, req.language)
+        with _model_lock:
+            started = time.perf_counter()
+            result = engine.transcribe(audio, req.language)
+            latency_ms = int((time.perf_counter() - started) * 1000)
     except NotImplementedError as exc:
         raise HTTPException(status_code=501, detail=str(exc)) from exc
     except Exception as exc:
@@ -73,7 +92,6 @@ def transcribe(req: TranscribeRequest):
     finally:
         if is_temp:
             _cleanup(audio)
-    latency_ms = int((time.perf_counter() - started) * 1000)
 
     return TranscribeResponse(
         text=result.text,
@@ -81,6 +99,8 @@ def transcribe(req: TranscribeRequest):
         model=engine.model,
         latency_ms=latency_ms,
         detected_language=result.language,
+        audio_duration_s=duration_s,
+        segments=[SegmentOut(start=s.start, end=s.end, text=s.text) for s in result.segments],
     )
 
 

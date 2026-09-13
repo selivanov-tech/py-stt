@@ -1,23 +1,17 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import sys
 
-from stt_engines import ENGINES
+from stt_engines import catalog
 
 from .config import Settings, load_dotenv_if_present
 
 
 def _list_engines() -> None:
     print("Engines  (key — languages — status — install):")
-    for key, cls in ENGINES.items():
-        probe = cls.probe_module
-        if probe is None:
-            status = "built-in" if key == "mock" else "stub"
-        else:
-            status = "available" if importlib.util.find_spec(probe) else "not installed"
-        print(f"  {key:15} {cls.languages:14} {status:14} {cls.requirements}")
+    for e in catalog():
+        print(f"  {e['key']:15} {e['languages']:32} {e['status']:14} {e['requirements']}")
 
 
 def main(argv: list[str] | None = None) -> int:
