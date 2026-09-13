@@ -11,6 +11,9 @@ __pycache__/
 mlruns/
 mlartifacts/
 
+# stt_eval.compare output: transcripts of private recordings
+runs/
+
 # Audio cache + datasets (large, often private)
 .cache/
 data/samples/
