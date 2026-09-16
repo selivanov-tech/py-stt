@@ -1,3 +1,6 @@
+import base64
+import os
+
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
@@ -28,6 +31,26 @@ def test_transcribe_mock():
     assert body["detected_language"] == "ru"
     assert body["segments"] == []
     assert body["audio_duration_s"] is None  # x.wav does not exist
+
+
+def test_inline_audio_goes_to_a_temp_file_that_is_removed():
+    payload = base64.b64encode(b"RIFF not really a wav").decode()
+    r = client.post("/transcribe", json={"engine": "mock", "audio_base64": payload})
+    assert r.status_code == 200
+    # the mock engine echoes the path it was given
+    path = r.json()["text"].rsplit(" ", 1)[-1]
+    assert path.endswith(".audio")
+    assert not os.path.exists(path)
+
+
+def test_invalid_inline_audio_returns_400():
+    r = client.post("/transcribe", json={"engine": "mock", "audio_base64": "not base64!"})
+    assert r.status_code == 400
+
+
+def test_oversized_inline_audio_returns_413():
+    r = client.post("/transcribe", json={"engine": "mock", "audio_base64": "A" * (45 << 20)})
+    assert r.status_code == 413
 
 
 def test_stub_engine_returns_501():
