@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import ipaddress
 import os
 import socket
@@ -15,6 +17,8 @@ from stt_engines import ENGINES, STTEngine, build_engine, catalog
 from stt_engines.media import audio_duration_s
 
 app = FastAPI(title="stt model worker")
+
+_MAX_INLINE_AUDIO_BYTES = 32 << 20  # matches go-stt's request cap
 
 # Engines are cached by spec so a model loads once and is reused across requests.
 _cache: dict[str, STTEngine] = {}
@@ -114,7 +118,24 @@ def _resolve_audio(req: TranscribeRequest) -> tuple[str, bool]:
             return _download(req.audio_url), True
         # s3:// is handled in the eval (stt_eval.audio.resolve_audio), not here yet.
         raise HTTPException(status_code=400, detail=f"unsupported audio_url scheme: {scheme!r}")
+    if req.audio_base64:
+        return _write_inline_audio(req.audio_base64), True
     return "<no-audio>", False  # fine for the mock engine
+
+
+def _write_inline_audio(encoded: str) -> str:
+    # base64 is 4 chars per 3 bytes: refuse oversized input before decoding it
+    if len(encoded) > (_MAX_INLINE_AUDIO_BYTES // 3 + 1) * 4:
+        raise HTTPException(status_code=413, detail="audio_base64 is larger than 32 MiB")
+    try:
+        data = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"audio_base64 is not valid: {exc}") from exc
+    # no extension on purpose: ffmpeg detects the container from the content
+    fd, path = tempfile.mkstemp(suffix=".audio")
+    with os.fdopen(fd, "wb") as f:
+        f.write(data)
+    return path
 
 
 def _cleanup(path: str) -> None:

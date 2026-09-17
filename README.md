@@ -42,7 +42,7 @@ The same engine code serves the worker and the eval, so the model that wins the 
 - Engines are **cached by spec**: a model loads once and is reused. **One lock covers loading and inference**: local models share one GPU and MLX is not safe to drive from several threads, so concurrent requests run one after another.
 - `audio_url` (http/https) is downloaded to a temp file and deleted after the call. An **SSRF guard** resolves the host first and rejects loopback, private, link-local, reserved and multicast addresses (cloud metadata included).
 - Error mapping: engine load failure → `400`, stub engine → `501`, transcription failure → `500`.
-- `audio_base64` is accepted by the schema but not materialised yet; the Go service forwards it, the worker ignores it.
+- `audio_base64` (inline audio, up to 32 MiB decoded, the same cap as go-stt's request) is written to a temp file and deleted after the call; ffmpeg detects the format from the content. Invalid base64 → `400`, too large → `413`. This is how a live voice bot (Pipecat) sends each phrase.
 
 ### `stt_eval`
 
@@ -102,7 +102,7 @@ Tests cover the engine registry, `build_engine` and `catalog` statuses (Parakeet
 ## Roadmap
 
 1. Record ~15–30 EN/RU clips, transcribe by hand, run the eval, pick the default model.
-2. Implement whisper.cpp if the eval justifies it, and `audio_base64` in the worker.
+2. Implement whisper.cpp if the eval justifies it.
 3. Apple Speech (`SpeechAnalyzer`, macOS 26) through a small Swift helper, as the built-in local baseline.
 4. Cloud engines move to Go (production profile); the Python worker stays the local, private path.
 
