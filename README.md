@@ -28,7 +28,7 @@ One abstract base, `STTEngine`, with `key`, `default_model`, `requirements`, `la
 | `mock` | built-in | ready | echoes a fake transcript; no models, used for wiring and tests |
 | `faster_whisper` | local, CPU | ready | `FASTER_WHISPER_DEVICE` / `FASTER_WHISPER_COMPUTE` (default `cpu` / `int8`), default model `large-v3` |
 | `mlx_whisper` | local, Apple Silicon | ready | short names map to `mlx-community/*` repos; default `large-v3-turbo`; any HF repo accepted; one language per file (the hint, or detected from the first 30 s); `MLX_WHISPER_CONDITION_ON_PREVIOUS_TEXT=false` breaks repetition loops on long files |
-| `parakeet_mlx` | local, Apple Silicon | ready | `tdt-0.6b-v3` (default; 25 European languages incl. English and Russian, detects the language itself) or `tdt-0.6b-v2` (English); files longer than `PARAKEET_CHUNK_SECONDS` (120) are chunked with `PARAKEET_OVERLAP_SECONDS` (15) |
+| `parakeet_mlx` | local, Apple Silicon | ready | `tdt-0.6b-v3` (default; 25 European languages incl. English and Russian, detects the language itself) or `tdt-0.6b-v2` (English); files longer than `PARAKEET_CHUNK_SECONDS` (120) are chunked with `PARAKEET_OVERLAP_SECONDS` (15); `<unk>` tokens are removed from the text, and the audio gets up to 7 ms of trailing zeros so parakeet-mlx's STFT never reads past its buffer (stale `inf` there once turned whole clips into `<unk>` runs) |
 | `whisper_cpp` | local | stub | |
 | `apple_speech` | local, macOS | stub | needs a small Swift helper |
 | `deepgram` · `assemblyai` · `elevenlabs` | cloud | stub | |
@@ -97,7 +97,7 @@ make lint        # ruff check + format check
 make typecheck   # mypy (check_untyped_defs)
 ```
 
-Tests cover the engine registry, `build_engine` and `catalog` statuses (Parakeet is real, cloud engines are stubs), the worker (health with catalog, mock transcribe with segments and duration, stub → 501, SSRF guard), `compare` in process (transcript files, agreement table, a failing engine), manifest parsing, metrics and normalisation. CI ([`ci.yml`](.github/workflows/ci.yml)) runs ruff, mypy and pytest with `uv sync --frozen` on every push and pull request.
+Tests cover the engine registry, `build_engine` and `catalog` statuses (Parakeet is real, cloud engines are stubs), Parakeet `<unk>` cleanup and the STFT tail guard (the MLX check runs only where MLX is installed), the worker (health with catalog, mock transcribe with segments and duration, stub → 501, SSRF guard), `compare` in process (transcript files, agreement table, a failing engine), manifest parsing, metrics and normalisation. CI ([`ci.yml`](.github/workflows/ci.yml)) runs ruff, mypy and pytest with `uv sync --frozen` on every push and pull request.
 
 ## Roadmap
 
