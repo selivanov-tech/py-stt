@@ -87,7 +87,7 @@ curl -X POST localhost:8090/transcribe -H 'content-type: application/json' \
 
 ## Parallel sessions
 
-`.wt.conf` prepares worktrees made by `wt` ([agent-skills](https://github.com/selivanov-tech/agent-skills)): a new worktree gets its own `.venv` through `uv sync --frozen --extra mlx --extra parakeet` (the uv cache makes it fast) and a copy of `.env`. `.venv` is not cloned from the main checkout, because its scripts hold the main checkout's absolute paths. A worker from a worktree needs its own port: `WORKER_PORT=8091 make worker`, or go-stt's `PY_STT=<worktree> WORKER_PORT=8091 ADDR=127.0.0.1:8081 make up`.
+`.wt.conf` prepares worktrees made by `wt` ([agent-harness](https://github.com/selivanov-tech/agent-harness)): a new worktree gets its own `.venv` through `uv sync --frozen --extra mlx --extra parakeet` (the uv cache makes it fast) and a copy of `.env`. `.venv` is not cloned from the main checkout, because its scripts hold the main checkout's absolute paths. A worker from a worktree needs its own port: `WORKER_PORT=8091 make worker`, or go-stt's `PY_STT=<worktree> WORKER_PORT=8091 ADDR=127.0.0.1:8081 make up`.
 
 ## Test and lint
 
